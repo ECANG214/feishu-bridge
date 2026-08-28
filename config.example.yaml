@@ -1,0 +1,14 @@
+# Feishu Bridge — Claude Code 飞书连接配置模板
+# 复制为 config.yaml 并填入真实值（config.yaml 已被 .gitignore 忽略）
+
+# 飞书开放平台自建应用凭据
+# 在 https://open.feishu.cn 创建「自建应用」后，于「凭证与基础信息」页获取
+app_id: cli_xxxxxxxxxxxxxxxx
+app_secret: your_app_secret_here
+
+# 域名：飞书填 feishu，Lark（海外）填 lark
+domain: feishu
+
+# 可选：若开启了事件订阅的「加密策略」，填写以下两项
+# encrypt_key: ""
+# verification_token: ""
