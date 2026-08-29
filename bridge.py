@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 BRIDGE_DIR = Path(__file__).parent.resolve()
+(BRIDGE_DIR / "logs").mkdir(parents=True, exist_ok=True)  # 确保 logs/ 存在，否则 FileHandler 首次运行会崩溃
 INBOX_PATH = BRIDGE_DIR / "inbox.json"
 OUTBOX_PATH = BRIDGE_DIR / "outbox.json"
 STATE_PATH = BRIDGE_DIR / "bridge_state.json"
