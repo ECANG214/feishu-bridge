@@ -101,14 +101,6 @@ logs/bridge.log     # 运行日志
 | Claude 执行端 | 任务执行，与本 bridge 协同 |
 | 学习伙伴 | 学习陪伴与进度跟进 |
 
-## 效果截图
-
-<!-- TODO: 运行 `python bridge.py` 后，截取以下画面粘贴至此：
-     1. 飞书群聊中发送任务指令的界面
-     2. Claude Code 收到消息并处理 / 写入 inbox.json 的过程
-     3. 回复经飞书 API 回到群聊的界面
--->
-
 ## License
 
 MIT
