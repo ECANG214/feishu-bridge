@@ -355,10 +355,14 @@ async def poll_outbox(client, interval: float = 1.0):
             outbox = load_outbox()
             modified = False
             for entry in outbox:
-                if entry.get("sent", False):
+                if entry.get("sent", False) or entry.get("gave_up", False):
                     continue
                 if entry.get("attempts", 0) >= MAX_SEND_ATTEMPTS:
-                    entry["sent"] = True
+                    # sent must mean 'delivered'. A gave-up entry used to be marked
+                    # sent=True with only a status_note, so consumers that trust `sent`
+                    # reported a lost message as delivered.
+                    entry["sent"] = False
+                    entry["gave_up"] = True
                     entry["status_note"] = f"gave up after {MAX_SEND_ATTEMPTS} failed sends"
                     entry["failed_at"] = datetime.now(timezone.utc).isoformat()
                     modified = True
@@ -466,7 +470,7 @@ def main():
         if not outbox:
             logger.info("Outbox is empty, nothing to send")
             return
-        pending = [e for e in outbox if not e.get("sent")]
+        pending = [e for e in outbox if not e.get("sent") and not e.get("gave_up")]
         if not pending:
             logger.info("All %d outbox entries are already sent", len(outbox))
             return
