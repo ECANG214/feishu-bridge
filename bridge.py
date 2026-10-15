@@ -22,7 +22,6 @@ from pathlib import Path
 from typing import Any, Optional
 
 BRIDGE_DIR = Path(__file__).parent.resolve()
-(BRIDGE_DIR / "logs").mkdir(parents=True, exist_ok=True)  # 确保 logs/ 存在，否则 FileHandler 首次运行会崩溃
 INBOX_PATH = BRIDGE_DIR / "inbox.json"
 OUTBOX_PATH = BRIDGE_DIR / "outbox.json"
 STATE_PATH = BRIDGE_DIR / "bridge_state.json"
@@ -242,9 +241,8 @@ def extract_text(message: Any) -> str:
 class BridgeEventHandler:
     """Handles Feishu WebSocket events, writing to inbox."""
 
-    def __init__(self, client, app_id: str = ""):
+    def __init__(self, client):
         self.client = client
-        self.app_id = app_id
         self.state = load_state()
 
     def _is_duplicate(self, message_id: str) -> bool:
@@ -281,21 +279,40 @@ class BridgeEventHandler:
             text = str(extract_text(message))
 
             # Don't echo our own messages
-            if (self.app_id and sender_id == self.app_id) or "bot" in str(getattr(sender, "sender_type", "")).lower():
+            if sender_id == "cli_xxxxxxxxxxxxxxxx" or "bot" in str(getattr(sender, "sender_type", "")).lower():
                 return False
 
             reply_to = parent_id or thread_id or root_id or None
             if reply_to is not None:
                 reply_to = str(reply_to)
 
+            # Record who was @-mentioned and the sender kind. In group text Feishu
+            # only leaves placeholders ("@_user_1"), so a responder cannot tell
+            # whether it was addressed without the mentions list. sender_type lets
+            # the responder refuse bot-to-bot chatter (loop guard).
+            mentions = []
+            for m in (getattr(message, "mentions", None) or []):
+                try:
+                    mid = getattr(m, "id", None)
+                    mentions.append({
+                        "key": str(getattr(m, "key", "") or ""),
+                        "name": str(getattr(m, "name", "") or ""),
+                        "open_id": str(getattr(mid, "open_id", "") or "") if mid else "",
+                    })
+                except Exception:
+                    continue
+            sender_type = str(getattr(sender, "sender_type", "") or "")
+
             entry = {
                 "id": str(message_id),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "sender_id": sender_id,
                 "sender_name": sender_id,
+                "sender_type": sender_type,
                 "chat_id": chat_id,
                 "chat_type": chat_type,
                 "text": text,
+                "mentions": mentions,
                 "reply_to": reply_to if reply_to else None,
                 "processed": False,
             }
@@ -310,15 +327,32 @@ class BridgeEventHandler:
 # Outbox poller
 # ---------------------------------------------------------------------------
 
+MAX_SEND_ATTEMPTS = 5
+
+
 async def poll_outbox(client, interval: float = 1.0):
-    """Periodically check outbox.json and send pending messages."""
-    logger.info("Outbox poller started (interval=%.1fs)", interval)
+    """Periodically check outbox.json and send pending messages.
+
+    Gives up after MAX_SEND_ATTEMPTS failed sends for one entry (e.g. when
+    ``reply_to`` points at a message id Feishu no longer accepts). Without this
+    cap a single bad entry retried forever, once per second.
+    """
+    logger.info("Outbox poller started (interval=%.1fs, max attempts=%d)",
+                interval, MAX_SEND_ATTEMPTS)
     while True:
         try:
             outbox = load_outbox()
             modified = False
             for entry in outbox:
                 if entry.get("sent", False):
+                    continue
+                if entry.get("attempts", 0) >= MAX_SEND_ATTEMPTS:
+                    entry["sent"] = True
+                    entry["status_note"] = f"gave up after {MAX_SEND_ATTEMPTS} failed sends"
+                    entry["failed_at"] = datetime.now(timezone.utc).isoformat()
+                    modified = True
+                    logger.error("Outbox: giving up on entry reply_to=%s after %d attempts",
+                                 entry.get("reply_to"), MAX_SEND_ATTEMPTS)
                     continue
                 success = send_message(
                     client,
@@ -329,7 +363,9 @@ async def poll_outbox(client, interval: float = 1.0):
                 if success:
                     entry["sent"] = True
                     entry["sent_at"] = datetime.now(timezone.utc).isoformat()
-                    modified = True
+                else:
+                    entry["attempts"] = entry.get("attempts", 0) + 1
+                modified = True
             if modified:
                 save_outbox(outbox)
         except Exception as e:
@@ -390,7 +426,7 @@ async def main_async(cfg: dict):
     client = build_lark_client(cfg)
     logger.info("Bridge initialized")
 
-    handler = BridgeEventHandler(client, app_id=cfg.get("app_id", ""))
+    handler = BridgeEventHandler(client)
 
     # Start WebSocket in background thread
     import threading

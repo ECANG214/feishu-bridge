@@ -12,3 +12,44 @@ domain: feishu
 # 可选：若开启了事件订阅的「加密策略」，填写以下两项
 # encrypt_key: ""
 # verification_token: ""
+
+# ─────────────────────────────────────────────────────────────────────────
+# Claude 应答器（responder.py）的配置
+#
+# 注意：responder.py **只读环境变量，不读本文件**。下面不是 config.yaml 的键，
+# 而是一份「变量名 → 占位值」的速查表，供你抄进自己的启动脚本
+# （Windows 下即 start-responder-hidden.vbs 里的 env.Item(...) 那几行，
+#  或 shell 里的 export）。所有值都是占位，请替换为你自己的；完整说明与
+#  默认值见 README「多 Agent 协作」一节。
+# ─────────────────────────────────────────────────────────────────────────
+
+# 轮询收件箱的间隔（秒）
+# BRIDGE_POLL_SECONDS=3
+
+# claude 可执行文件。Windows 下必须填 .exe 全路径：
+# CreateProcess 无法解析 npm 安装产生的 claude.cmd
+# BRIDGE_CLAUDE_BIN=<path-to-claude.exe>
+
+# 模型名；留空则调用时不带 --model 参数
+# BRIDGE_CLAUDE_MODEL=<model-name>
+
+# 允许的工具，逗号分隔。默认只读；放开写/执行前请想清楚：
+# 群里任何人届时都能驱动这台机器（含 MCP 工具，形如 mcp__<server>__<tool>）
+# BRIDGE_CLAUDE_TOOLS=Read,Grep,Glob
+
+# 传给 claude 子进程的工作目录（决定它能读到哪个项目的文件）
+# BRIDGE_CLAUDE_CWD=<path-to-working-dir>
+
+# 单次调用的最大轮数与超时（秒）
+# BRIDGE_CLAUDE_MAX_TURNS=8
+# BRIDGE_CLAUDE_TIMEOUT=240
+
+# 群内可触发应答的 @ 名，逗号分隔，子串匹配、不区分大小写
+# BRIDGE_MENTION_NAMES=<mention-name>
+
+# 发送者 open_id 白名单，逗号分隔；留空 = 不限制任何真人。
+# 注意 open_id 按应用隔离：同一个人在不同自建应用下的 open_id 不同
+# BRIDGE_ALLOWED_SENDERS=ou_xxxxxxxxxxxxxxxx
+
+# 是否用 --resume 续接同一 chat 的会话上下文；0 / false / no 关闭
+# BRIDGE_KEEP_CONTEXT=1
