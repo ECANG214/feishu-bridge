@@ -43,7 +43,7 @@ MODEL = os.environ.get("BRIDGE_CLAUDE_MODEL", "haiku")          # haiku -> deeps
 TOOLS = os.environ.get("BRIDGE_CLAUDE_TOOLS", "Read,Grep,Glob")  # read-only by default
 MAX_TURNS = os.environ.get("BRIDGE_CLAUDE_MAX_TURNS", "8")
 TIMEOUT = float(os.environ.get("BRIDGE_CLAUDE_TIMEOUT", "240"))
-WORKDIR = os.environ.get("BRIDGE_CLAUDE_CWD", r"<work-dir>")
+WORKDIR = os.environ.get("BRIDGE_CLAUDE_CWD") or str(BRIDGE)  # default: this script's own directory
 MENTION_NAMES = [n.strip().lower() for n in os.environ.get("BRIDGE_MENTION_NAMES", "claude").split(",") if n.strip()]
 ALLOWED_SENDERS = [s.strip() for s in os.environ.get("BRIDGE_ALLOWED_SENDERS", "").split(",") if s.strip()]
 KEEP_CONTEXT = os.environ.get("BRIDGE_KEEP_CONTEXT", "1") not in ("0", "false", "no")
@@ -98,11 +98,23 @@ def save_json(path: Path, data) -> None:
     tmp.replace(path)
 
 
+def _mention_matches(name: str) -> bool:
+    """Exact match first; substring only for names long enough not to false-trigger.
+
+    A short configured name (e.g. "c") used to match every bot whose name contains
+    it, so substring matching now requires at least 4 characters.
+    """
+    for want in MENTION_NAMES:
+        if name == want or (len(want) >= 4 and want in name):
+            return True
+    return False
+
+
 def addressed_to_claude(entry: dict) -> bool:
     if entry.get("chat_type") != "group":
         return True  # DM
     names = [str(m.get("name", "")).lower() for m in (entry.get("mentions") or [])]
-    if any(any(want in name for name in names) for want in MENTION_NAMES):
+    if any(_mention_matches(name) for name in names):
         return True
     if not names:  # older entries recorded before mentions existed
         return "claude" in str(entry.get("text", "")).lower()
@@ -196,9 +208,9 @@ def main() -> None:
                     log(f"skip {mid}: {why}")
                     continue
                 prompt = (f"{SYSTEM_RULES}\n\n--- 群消息 ---\n"
-                          f"发送者: {entry.get('sender_name', '?')}\n"
+                          f"发送者: {entry.get('sender_name') or entry.get('sender_id') or '?'}\n"
                           f"内容: {entry.get('text', '')}")
-                log(f"handling {mid} from {entry.get('sender_name')} "
+                log(f"handling {mid} from {entry.get('sender_name') or entry.get('sender_id')} "
                     f"chat={entry.get('chat_id')} text={str(entry.get('text'))[:60]!r}")
                 reply, new_sid, err = call_claude(prompt, sessions.get(entry.get("chat_id", "")))
                 if new_sid:

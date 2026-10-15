@@ -93,7 +93,7 @@ def write_inbox(message: dict) -> None:
     if len(inbox) > MAX_INBOX_SIZE:
         inbox = inbox[-MAX_INBOX_SIZE:]
     save_json_array(INBOX_PATH, inbox)
-    logger.info("Inbox: message from %s (%d chars)", message.get("sender_name", "?"), len(message.get("text", "")))
+    logger.info("Inbox: message from %s (%d chars)", (message.get("sender_name") or message.get("sender_id") or "?"), len(message.get("text", "")))
 
 
 # ---------------------------------------------------------------------------
@@ -318,7 +318,7 @@ class BridgeEventHandler:
                 "id": str(message_id),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "sender_id": sender_id,
-                "sender_name": sender_id,
+                "sender_name": "",
                 "sender_type": sender_type,
                 "chat_id": chat_id,
                 "chat_type": chat_type,

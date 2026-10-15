@@ -76,7 +76,7 @@ claude -p "<包装后的群消息>" --output-format json --max-turns 8 \
 
 | 护栏 | 行为 |
 |------|------|
-| 只在被 @ 时响应 | 群消息（`chat_type == "group"`）必须命中 `mentions` 中的名字才处理；名字按子串、不区分大小写匹配，默认 `claude`。私聊（非 group）一律处理 |
+| 只在被 @ 时响应 | 群消息（`chat_type == "group"`）必须命中 `mentions` 中的名字才处理；名字不区分大小写、**优先精确匹配**，仅当名字长度 ≥4 时才允许子串匹配（避免短名误触发），默认 `claude`。私聊（非 group）一律处理 |
 | 拒绝机器人消息 | `sender_type` 为非空且不是 `user` 时跳过（空值按真人处理），防止两个 bot 互相 @ 刷成死循环。bridge 侧也会先滤掉 `sender_type` 含 `bot` 的消息，这里是不依赖 bridge 的第二道闸 |
 | 单线程、按到达顺序 | 一个 `while` 循环顺序遍历 inbox，同一时刻只有一个 `claude` 子进程，无并发 |
 | STOP 文件可急停 | 在 `responder.py` 同目录建一个名为 `STOP` 的文件（无扩展名），下一轮轮询即干净退出并先落盘会话状态。启动时若已存在 STOP 会先删除，避免刚重启就退出 |
@@ -126,8 +126,8 @@ responder 的全部配置来自**环境变量**（它不读 `config.yaml`）；�
 | `BRIDGE_CLAUDE_TOOLS` | 传给 `--allowedTools` 的工具列表 | `Read,Grep,Glob` |
 | `BRIDGE_CLAUDE_MAX_TURNS` | 传给 `--max-turns` | `8` |
 | `BRIDGE_CLAUDE_TIMEOUT` | 单次 `claude` 调用的超时（秒） | `240` |
-| `BRIDGE_CLAUDE_CWD` | `claude` 子进程的工作目录，决定它能读到哪个项目的文件 | `<work-dir>`（本机路径，部署时必改） |
-| `BRIDGE_MENTION_NAMES` | 群内可触发应答的 @ 名，逗号分隔，子串匹配、不区分大小写 | `claude` |
+| `BRIDGE_CLAUDE_CWD` | `claude` 子进程的工作目录，决定它能读到哪个项目的文件 | `responder.py` 所在目录（可用 `BRIDGE_CLAUDE_CWD` 指定其它项目目录） |
+| `BRIDGE_MENTION_NAMES` | 群内可触发应答的 @ 名，逗号分隔；不区分大小写，精确匹配优先，长度 ≥4 时才允许子串匹配 | `claude` |
 | `BRIDGE_ALLOWED_SENDERS` | 发送者 open_id 白名单，逗号分隔；空 = 不限制 | 空 |
 | `BRIDGE_KEEP_CONTEXT` | 是否用 `--resume` 续接同一 chat 的会话；`0` / `false` / `no` 关闭 | `1`（开启） |
 
