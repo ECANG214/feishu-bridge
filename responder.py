@@ -186,6 +186,10 @@ def main() -> None:
             entry["processed"] = True
             dirty = True
             mid = entry.get("id")
+            # Persist right away: the batch used to be written only after the whole
+            # loop, so a hard kill (task manager) lost the flag and the same message
+            # could be answered twice after a restart.
+            save_json(INBOX, entries)
             try:
                 ok, why = should_handle(entry)
                 if not ok:

@@ -26,6 +26,11 @@ INBOX_PATH = BRIDGE_DIR / "inbox.json"
 OUTBOX_PATH = BRIDGE_DIR / "outbox.json"
 STATE_PATH = BRIDGE_DIR / "bridge_state.json"
 
+# A clean clone has no logs/ directory, and logging.FileHandler opens the file at
+# import time - so create the directory first or `python bridge.py` dies before it
+# starts (previously only start-bridge.bat created it).
+(BRIDGE_DIR / "logs").mkdir(parents=True, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [Bridge] %(levelname)s %(message)s",
@@ -55,7 +60,7 @@ def load_config() -> dict:
 # ---------------------------------------------------------------------------
 
 def atomic_write_json(path: Path, data: Any) -> None:
-    tmp = path.with_suffix(".tmp")
+    tmp = path.with_name(path.name + ".tmp")  # inbox.json -> inbox.json.tmp (matches responder.py)
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     tmp.replace(path)
@@ -278,8 +283,14 @@ class BridgeEventHandler:
 
             text = str(extract_text(message))
 
-            # Don't echo our own messages
-            if sender_id == "cli_xxxxxxxxxxxxxxxx" or "bot" in str(getattr(sender, "sender_type", "")).lower():
+            # Don't echo our own messages.
+            # NOTE: sender_id is an open_id (ou_...) and can never equal an app_id
+            # (cli_...), so the old comparison against an app_id literal was dead
+            # code. The real gate is sender_type; FEISHU_BOT_OPEN_ID makes the
+            # "not our own post" intent explicit for apps that report their own
+            # messages as sender_type == "user".
+            own_open_id = os.environ.get("FEISHU_BOT_OPEN_ID", "").strip()
+            if "bot" in str(getattr(sender, "sender_type", "")).lower() or (own_open_id and sender_id == own_open_id):
                 return False
 
             reply_to = parent_id or thread_id or root_id or None
